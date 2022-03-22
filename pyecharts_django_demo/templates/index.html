@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Awesome-pyecharts</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.0.0/jquery.min.js"></script>
+    <script type="text/javascript" src="https://assets.pyecharts.org/assets/echarts.min.js"></script>
+
+</head>
+<body>
+    <div id="lineMSE" style="width:45%; height:290px; float:left"></div>
+    <div id="lineRMSE" style="width:45%; height:290px; float:left"></div>
+    <div id="lineMAE" style="width:45%; height:290px; float:left"></div>
+    <div id="lineR2" style="width:45%; height:290px; float:left"></div>
+    <script>
+        var chartMSE = echarts.init(document.getElementById('lineMSE'), 'white', {renderer: 'canvas'});
+        var chartRMSE = echarts.init(document.getElementById('lineRMSE'), 'white', {renderer: 'canvas'});
+        var chartMAE = echarts.init(document.getElementById('lineMAE'), 'white', {renderer: 'canvas'});
+        var chartR2 = echarts.init(document.getElementById('lineR2'), 'white', {renderer: 'canvas'});
+        var old_data_MSE = [];
+        var old_data_RMSE = [];
+        var old_data_MAE = [];
+        var old_data_R2 = [];
+        $(
+            function () {
+                fetchData(chartMSE, chartRMSE, chartMAE, chartR2);
+                setInterval(getDynamicData, 2000);
+            }
+        );
+
+        function fetchData() {
+            $.ajax({
+                type: "GET",
+                url: "http://127.0.0.1:8003/demo/line/MSE",
+                dataType: "json",
+                success: function (result) {
+                    var options = result.data;
+                    chartMSE.setOption(options);
+                    old_data_MSE = chartMSE.getOption().series[0].data;
+                }
+            });
+            $.ajax({
+                type: "GET",
+                url: "http://127.0.0.1:8003/demo/line/RMSE",
+                dataType: "json",
+                success: function (result) {
+                    var options = result.data;
+                    chartRMSE.setOption(options);
+                    old_data_RMSE = chartRMSE.getOption().series[0].data;
+                }
+            });
+            $.ajax({
+                type: "GET",
+                url: "http://127.0.0.1:8003/demo/line/MAE",
+                dataType: "json",
+                success: function (result) {
+                    var options = result.data;
+                    chartMAE.setOption(options);
+                    old_data_MAE = chartMAE.getOption().series[0].data;
+                }
+            });
+            $.ajax({
+                type: "GET",
+                url: "http://127.0.0.1:8003/demo/line/R2",
+                dataType: "json",
+                success: function (result) {
+                    var options = result.data;
+                    chartR2.setOption(options);
+                    old_data_R2 = chartR2.getOption().series[0].data;
+                }
+            });
+        }
+
+        function getDynamicData() {
+            $.ajax({
+                type: "GET",
+                url: "http://127.0.0.1:8003/demo/lineUpdate",
+                dataType: 'json',
+                success: function (result) {
+                    var options = result.data;
+                    for(var i = 0; i < options.length; ++i) {
+                        old_data_MSE.push([options[i].name, options[i].value["MSE"]])
+                        old_data_RMSE.push([options[i].name, options[i].value["RMSE"]])
+                        old_data_MAE.push([options[i].name, options[i].value["MAE"]])
+                        old_data_R2.push([options[i].name, options[i].value["R2"]])
+                    }
+                    //old_data.push([options.name, options.value]);
+                    chartMSE.setOption({
+                        series: [{
+                            data: old_data_MSE
+                        }]
+                    });
+                    chartRMSE.setOption({
+                        series: [{
+                            data: old_data_RMSE
+                        }]
+                    });
+                    chartMAE.setOption({
+                        series: [{
+                            data: old_data_MAE
+                        }]
+                    });
+                    chartR2.setOption({
+                        series: [{
+                            data: old_data_R2
+                        }]
+                    });
+                }
+            });
+        }
+
+    </script>
+</body>
+</html>
