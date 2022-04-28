@@ -3,9 +3,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 import fock.layers as layers
-import matplotlib.pyplot as plt
 import midware
-
+import requests
+import json
 
 num_epochs = 500
 batch_size = 128
@@ -61,20 +61,21 @@ class LossCalculator:
         self.R2 = []
         self.length = 0
     def calculate(self, y, y_pred):
-        mse = np.mean(np.square(y - y_pred), axis=0)
+        mse = np.mean(np.square(y - y_pred), axis=0)[0]
         rmse = np.sqrt(mse)
-        mae = np.mean(np.abs(y - y_pred), axis=0)
+        mae = np.mean(np.abs(y - y_pred), axis=0)[0]
         r2 = 1 - np.sum(np.square(y_pred - y)) / np.sum(np.square(y - np.mean(y_pred)))
         self.MSE.append(mse)
         self.RMSE.append(rmse)
         self.MAE.append(mae)
         self.R2.append(r2)
         self.length += 1
+        return mse, rmse, mae, r2
 
 if __name__ == '__main__':
     model = MLP(frame=(2, 2))
     data_loader = DataLoader()
-    data_transfer = midware.DataTransfer("Steam_MLP")
+    data_transfer = midware.DataTransfer("http://127.0.0.1:8001", "Steam_MLP")
     data_transfer.initModel([data_loader.X.shape[1], model.dense1.units, model.dense2.units, model.dense3.units])
     lossCalculator = LossCalculator()
     for epoch_index in range(num_epochs):
@@ -83,27 +84,10 @@ if __name__ == '__main__':
         #y = np.array([[4], [5]])
         y_pred = model(X)
         model.gradient(y_pred - y, learning_rate)
-        lossCalculator.calculate(y, y_pred)
-    x = [i for i in range(0, lossCalculator.length, 3)]
-    plt.subplot(2, 2, 1)
-    plt.plot(x, lossCalculator.MSE[::3], color='#403540', linewidth=1.0, linestyle='-')
-    plt.ylabel('MSE误差', fontproperties="SimSun")
-    plt.xlabel('训练轮次', fontproperties="SimSun")
-
-    plt.subplot(2, 2, 2)
-    plt.plot(x, lossCalculator.RMSE[::3], color='#566273', linewidth=1.0, linestyle='-')
-    plt.ylabel('RMSE误差', fontproperties="SimSun")
-    plt.xlabel('训练轮次', fontproperties="SimSun")
-
-    plt.subplot(2, 2, 3)
-    plt.plot(x, lossCalculator.MAE[::3], color='#c5a794', linewidth=1.0, linestyle='-')
-    plt.ylabel('MAE误差', fontproperties="SimSun")
-    plt.xlabel('训练轮次', fontproperties="SimSun")
-
-    plt.subplot(2, 2, 4)
-    plt.plot(x, lossCalculator.R2[::3], color='#927470', linewidth=1.0, linestyle='-')
-    plt.ylabel('R2误差', fontproperties="SimSun")
-    plt.xlabel('训练轮次', fontproperties="SimSun")
-
-    plt.tight_layout()
-    plt.show()
+        mse, rmse, mae, r2 = lossCalculator.calculate(y, y_pred)
+        lossDic = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
+        requests.get(url = "http://127.0.0.1:8002/putLoss/B/" + json.dumps(lossDic))
+	
+	
+	
+	

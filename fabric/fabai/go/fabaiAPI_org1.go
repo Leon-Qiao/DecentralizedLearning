@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config"
 	"github.com/hyperledger/fabric-sdk-go/pkg/gateway"
@@ -21,6 +22,9 @@ import (
 )
 
 func main() {
+	
+	ModelList := map[string]string{"steam": "MODEL0"}
+	
 	os.Setenv("DISCOVERY_AS_LOCALHOST", "true")
 	wallet, err := gateway.NewFileSystemWallet("wallet")
 	if err != nil {
@@ -80,12 +84,14 @@ func main() {
 	})
 
 	
-	router.GET("/createmodel/:modelNumber/:modelName", func(c *gin.Context) {
+	router.GET("/initGrad/:ModelName/:Frame", func(c *gin.Context) {
 		var result []byte
-		modelNumber := c.Param("modelNumber")
-        	modelName := c.Param("modelName")
+		modelName := c.Param("ModelName")
+        	frame := c.Param("Frame")
         	
-        	result, err = contract.SubmitTransaction("CreateModel", modelNumber, modelName)
+        	ModelList[modelName] = "MODEL" + strconv.Itoa(len(ModelList))
+        	
+        	result, err = contract.SubmitTransaction("CreateModel", ModelList[modelName], modelName, frame)
 		if err != nil {
 			fmt.Printf("Failed to submit transaction: %s\n", err)
 			os.Exit(1)
@@ -96,11 +102,12 @@ func main() {
 	})
 	
 
-	router.GET("/querymodel/:modelNumber", func(c *gin.Context) {
+	router.GET("/getGrad/:ModelName/:LayerName", func(c *gin.Context) {
 		var result []byte
-		modelNumber := c.Param("modelNumber")
+		modelName := c.Param("ModelName")
+		layerName := c.Param("LayerName")
 		
-		result, err = contract.EvaluateTransaction("QueryModel", modelNumber)
+		result, err = contract.EvaluateTransaction("getGrad", ModelList[modelName], layerName)
 		if err != nil {
 			fmt.Printf("Failed to evaluate transaction: %s\n", err)
 			os.Exit(1)
@@ -110,23 +117,20 @@ func main() {
 		c.String(http.StatusOK, string(result))
 	})
 	
-	router.GET("/modifymodel/:modelNumber/:Param", func(c *gin.Context) {
+	router.GET("/putGrad/:ModelName/:LayerName/:Position/:grad", func(c *gin.Context) {
 		var result []byte
-		modelNumber := c.Param("modelNumber")
-		Param := c.Param("Param")
-		_, err = contract.SubmitTransaction("ModifyModel", modelNumber, Param)
+		modelName := c.Param("ModelName")
+		layerName := c.Param("LayerName")
+		position := c.Param("Position")
+		grad := c.Param("grad")
+		
+		result, err = contract.SubmitTransaction("putGrad", ModelList[modelName], layerName, position, grad)
 		if err != nil {
 			fmt.Printf("Failed to submit transaction: %s\n", err)
 			os.Exit(1)
 		}
 
-		result, err = contract.EvaluateTransaction("QueryModel", modelNumber)
-		if err != nil {
-			fmt.Printf("Failed to evaluate transaction: %s\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(result))
-		
+		fmt.Println(string(result))		
 		c.String(http.StatusOK, string(result))
 	})
 

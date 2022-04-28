@@ -22,7 +22,7 @@ type SmartContract struct {
 
 type Model struct {
 	Name    string  `json:"name"`
-	Param   string  `json:"param"`
+	Grads   map[string][][]float64  `json:"grads"`
 }
 
 // QueryResult structure used for handling result of query
@@ -34,10 +34,9 @@ type QueryResult struct {
 // InitLedger adds a base set of books to the ledger
 func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
         models := []Model{
-        	Model{Name: "steam1",
-        	Param: "",},
-        	Model{Name: "steam2",
-        	Param: "",},
+        	Model{Name: "steam",
+        	Grads: make(map[string][][]float64),
+        	},
         }
 
         for i, model := range models {
@@ -53,10 +52,17 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 }
 
 // CreateBook adds a new book to the world state with given details
-func (s *SmartContract) CreateModel(ctx contractapi.TransactionContextInterface, modelNumber string, name string) error {
+func (s *SmartContract) CreateModel(ctx contractapi.TransactionContextInterface, modelNumber string, modelName string, frame map[string][]int) error {
         model := Model{
-                Name:      name,
-	        Param:     "",
+                Name:	modelName,
+                Grads:	make(map[string][][]float64),
+        }
+        
+        for k, v := range frame{
+        	model.Grads[k] = make([][]float64, v[0])
+		for i := range model.Grads[k]{
+			model.Grads[k][i] = make([]float64, v[1])
+		}
         }
 
         modelAsBytes, _ := json.Marshal(model)
@@ -64,7 +70,36 @@ func (s *SmartContract) CreateModel(ctx contractapi.TransactionContextInterface,
         return ctx.GetStub().PutState(modelNumber, modelAsBytes)
 }
 
-// QueryBook returns the book stored in the world state with given id
+func (s *SmartContract) GetGrad(ctx contractapi.TransactionContextInterface, modelNumber string, layerName string) ([][]float64, error) {
+        modelAsBytes, err := ctx.GetStub().GetState(modelNumber)
+        if err != nil {
+                return nil, fmt.Errorf("Failed to read from world state. %s", err.Error())
+        }
+
+        if modelAsBytes == nil {
+                return nil, fmt.Errorf("%s does not exist", modelNumber)
+        }
+
+        model := new(Model)
+        _ = json.Unmarshal(modelAsBytes, model)
+
+        return model.Grads[layerName], nil
+}
+
+func (s *SmartContract) PutGrad(ctx contractapi.TransactionContextInterface, modelNumber string, layerName string, position int, grad [][]float64) ([][]float64, error) {
+	model, err := s.QueryModel(ctx, modelNumber)
+	if err != nil {
+                return nil, fmt.Errorf("Failed to read from world state. %s", err.Error())
+        }
+        if model == nil {
+                return nil, fmt.Errorf("%s does not exist", modelNumber)
+        }
+        copy(model.Grads[layerName][position: position + len(grad)], grad)
+	modelAsBytes, _ := json.Marshal(model)
+        ctx.GetStub().PutState(modelNumber, modelAsBytes)
+        return model.Grads[layerName], nil
+}
+
 func (s *SmartContract) QueryModel(ctx contractapi.TransactionContextInterface, modelNumber string) (*Model, error) {
         modelAsBytes, err := ctx.GetStub().GetState(modelNumber)
         if err != nil {
@@ -113,21 +148,6 @@ func (s *SmartContract) QueryAllModels(ctx contractapi.TransactionContextInterfa
         return results, nil
 }
 
-// ChangeBookPrice updates the price field of book with given id in world state
-func (s *SmartContract) ModifyModel(ctx contractapi.TransactionContextInterface, modelNumber string, sParam string) error {
-	modiModel, err := s.QueryModel(ctx, modelNumber)
-
-        if err != nil {
-                return err
-        }
-        
-        modiModel.Param = sParam
-	
-        modiModelAsBytes, _ := json.Marshal(modiModel)
-
-        ctx.GetStub().PutState(modelNumber, modiModelAsBytes)
-        return nil
-}
 
 func main() {
 
