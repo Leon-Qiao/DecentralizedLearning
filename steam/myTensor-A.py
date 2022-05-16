@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-import fock.layers as layers
+from fock import layers
+from fock import LossCalculator
 import midware
 import requests
 import json
 
-num_epochs = 500
+num_epochs = 150
 batch_size = 128
 learning_rate = 0.0003
 
@@ -22,13 +23,16 @@ class DataLoader:
         self.X = self.mmX.fit_transform(self.X)
         #self.y = self.mmY.fit_transform(self.y.reshape(-1, 1))
         self.y = self.y.reshape(-1, 1)
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.3, random_state=0)
+        self.X_train, self.X_vt, self.y_train, self.y_vt = train_test_split(self.X, self.y, test_size=0.4, random_state=0)
+        self.X_vali, self.X_test, self.y_vali, self.y_test = train_test_split(self.X_vt, self.y_vt, test_size=0.5, random_state=0)
     def get_batch(self, batch_size=0, mode='train'):
         if mode == 'train':
             index = np.random.randint(0, len(self.y_train), batch_size)
             return self.X_train[index], self.y_train[index]
         if mode == 'test':
             return self.X_test, self.y_test
+        if mode == 'validate':
+            return self.X_vali, self.y_vali
 
 class MLP:
     def __init__(self, frame=(1, 1)):
@@ -53,41 +57,35 @@ class MLP:
         dense1_grad = data_transfer.upload("dense1", self.dense1.BEGIN_INDEX, self.dense1.grad)
         self.dense1.adam.apply_gradients(dense1_grad, self.dense1.weight, learning_rate)
 
-class LossCalculator:
-    def __init__(self):
-        self.MSE = []
-        self.RMSE = []
-        self.MAE = []
-        self.R2 = []
-        self.length = 0
-    def calculate(self, y, y_pred):
-        mse = np.mean(np.square(y - y_pred), axis=0)[0]
-        rmse = np.sqrt(mse)
-        mae = np.mean(np.abs(y - y_pred), axis=0)[0]
-        r2 = 1 - np.sum(np.square(y_pred - y)) / np.sum(np.square(y - np.mean(y_pred)))
-        self.MSE.append(mse)
-        self.RMSE.append(rmse)
-        self.MAE.append(mae)
-        self.R2.append(r2)
-        self.length += 1
-        return mse, rmse, mae, r2
-
 if __name__ == '__main__':
     model = MLP(frame=(1, 2))
     data_loader = DataLoader()
     data_transfer = midware.DataTransfer("http://127.0.0.1:8000", "Steam_MLP")
     data_transfer.initModel([data_loader.X.shape[1], model.dense1.units, model.dense2.units, model.dense3.units])
-    lossCalculator = LossCalculator()
+    num_batch = data_loader.X_train.shape[0] // batch_size
+    valiLossCalculator = LossCalculator(1)
+    lossCalculator = LossCalculator(num_batch)
     for epoch_index in range(num_epochs):
-        X, y = data_loader.get_batch(batch_size=batch_size)
-        #X = np.array([[2, 3, 4],[7,8,9]])
-        #y = np.array([[4], [5]])
-        y_pred = model(X)
-        model.gradient(y_pred - y, learning_rate)
-        mse, rmse, mae, r2 = lossCalculator.calculate(y, y_pred)
-        lossDic = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
-        requests.get(url = "http://127.0.0.1:8002/putLoss/A/" + json.dumps(lossDic))
+        for batch in range(num_batch):
+            X, y = data_loader.get_batch(batch_size=batch_size)
+            #X = np.array([[2, 3, 4],[7,8,9]])
+            #y = np.array([[4], [5]])
+            y_pred = model(X)
+            model.gradient(y_pred - y, learning_rate)
+            lossCalculator.evaluate(y, y_pred)
+        # lossDic = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
+        # requests.get(url = "http://127.0.0.1:8002/putLoss/A/" + json.dumps(lossDic))
+        X_v, y_v = data_loader.get_batch(mode='validate')
+        y_v_pred = model(X_v)
+        valiLossCalculator.evaluate(y_v, y_v_pred)
+    d = {"TrainLoss": lossCalculator.getLoss(), "ValidateLoss": valiLossCalculator.getLoss()}
+    f = open('A.log', 'w')
+    f.write(json.dumps(d))
+    f.close()
 
-
-
+    X_t, y_t = data_loader.get_batch(mode="test")
+    testLossCalculator = LossCalculator(1)
+    y_t_pred = model(X_t)
+    testLossCalculator.evaluate(y_t, y_t_pred)
+    print(testLossCalculator.getLoss())
 

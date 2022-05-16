@@ -7,7 +7,7 @@ import midware
 import requests
 import json
 
-num_epochs = 500
+num_epochs = 150
 batch_size = 128
 learning_rate = 0.0003
 
@@ -22,13 +22,16 @@ class DataLoader:
         self.X = self.mmX.fit_transform(self.X)
         #self.y = self.mmY.fit_transform(self.y.reshape(-1, 1))
         self.y = self.y.reshape(-1, 1)
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.3, random_state=0)
+        self.X_train, self.X_vt, self.y_train, self.y_vt = train_test_split(self.X, self.y, test_size=0.4, random_state=0)
+        self.X_vali, self.X_test, self.y_vali, self.y_test = train_test_split(self.X_vt, self.y_vt, test_size=0.5, random_state=0)
     def get_batch(self, batch_size=0, mode='train'):
         if mode == 'train':
             index = np.random.randint(0, len(self.y_train), batch_size)
             return self.X_train[index], self.y_train[index]
         if mode == 'test':
             return self.X_test, self.y_test
+        if mode == 'validate':
+            return self.X_vali, self.y_vali
 
 class MLP:
     def __init__(self, frame=(1, 1)):
@@ -75,18 +78,20 @@ class LossCalculator:
 if __name__ == '__main__':
     model = MLP(frame=(2, 2))
     data_loader = DataLoader()
-    data_transfer = midware.DataTransfer("http://127.0.0.1:8001", "Steam_MLP")
+    data_transfer = midware.DataTransfer("http://127.0.0.1:8000", "Steam_MLP")
     data_transfer.initModel([data_loader.X.shape[1], model.dense1.units, model.dense2.units, model.dense3.units])
     lossCalculator = LossCalculator()
+    num_batch = data_loader.X_train.shape[0] // batch_size
     for epoch_index in range(num_epochs):
-        X, y = data_loader.get_batch(batch_size=batch_size)
-        #X = np.array([[2, 3, 4],[7,8,9]])
-        #y = np.array([[4], [5]])
-        y_pred = model(X)
-        model.gradient(y_pred - y, learning_rate)
-        mse, rmse, mae, r2 = lossCalculator.calculate(y, y_pred)
-        lossDic = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
-        requests.get(url = "http://127.0.0.1:8002/putLoss/B/" + json.dumps(lossDic))
+        for batch in range(num_batch):
+            X, y = data_loader.get_batch(batch_size=batch_size)
+            #X = np.array([[2, 3, 4],[7,8,9]])
+            #y = np.array([[4], [5]])
+            y_pred = model(X)
+            model.gradient(y_pred - y, learning_rate)
+        # mse, rmse, mae, r2 = lossCalculator.calculate(y, y_pred)
+        # lossDic = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
+        # requests.get(url = "http://127.0.0.1:8002/putLoss/B/" + json.dumps(lossDic))
 	
 	
 	
