@@ -17,7 +17,7 @@ class LossCalculator:
         mse = np.mean(np.square(y - y_pred), axis=0)[0]
         rmse = np.sqrt(mse)
         mae = np.mean(np.abs(y - y_pred), axis=0)[0]
-        r2 = 1 - np.sum(np.square(y_pred - y)) / np.sum(np.square(y - np.mean(y_pred)))
+        r2 = 1 - np.sum(np.square(y_pred - y)) / np.sum(np.square(y - np.mean(y)))
         self.temp_MSE.append(mse)
         self.temp_RMSE.append(rmse)
         self.temp_MAE.append(mae)
